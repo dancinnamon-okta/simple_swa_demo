@@ -1,6 +1,7 @@
 import json
 import logging
 from urllib.parse import urljoin
+import os
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
@@ -61,6 +62,9 @@ class SCIMView(View):
         if not self.implemented:
             return self.status_501(request, *args, **kwargs)
 
+        if not self.correct_auth_header(request):
+            return self.status_401(request)
+
         try:
             try:
                 body = get_loggable_body(request.body.decode(constants.ENCODING))
@@ -102,6 +106,19 @@ class SCIMView(View):
         respond with HTTP status code 501 (Not Implemented).
         """
         return HttpResponse(content_type=constants.SCIM_CONTENT_TYPE, status=501)
+
+    def status_401(self, request):
+        return HttpResponse(content_type=constants.SCIM_CONTENT_TYPE, status=401)
+
+    def correct_auth_header(self, request):
+        if 'HTTP_AUTHORIZATION' not in request.META or 'API_KEY' not in os.environ:
+            return False
+
+        key = os.environ.get('API_KEY')
+        bearer = request.META.get('HTTP_AUTHORIZATION')
+
+        return key == bearer
+
 
 
 class FilterMixin(object):
