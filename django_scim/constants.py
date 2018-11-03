@@ -1,19 +1,13 @@
 ENCODING = 'utf-8'
 SCIM_CONTENT_TYPE = 'application/scim+json'
-
+BASE_PATH = 'https://localhost'
 
 class SchemaURI(object):
     ERROR = 'urn:ietf:params:scim:api:messages:2.0:Error'
-    #LIST_RESPONSE = 'urn:ietf:params:scim:api:messages:2.0:ListResponse'
     LIST_RESPONSE = 'urn:scim:schemas:core:1.0'
-    SERACH_REQUEST = 'urn:ietf:params:scim:api:messages:2.0:SearchRequest'
-    NOT_SERACH_REQUEST = 'urn:ietf:params:scim:api:messages:2.0:NotSearchRequest'
-    PATCH_OP = 'urn:ietf:params:scim:api:messages:2.0:PatchOp'
+    SEARCH_REQUEST = 'urn:ietf:params:scim:api:messages:2.0:SearchRequest'
     USER = 'urn:scim:schemas:core:1.0'
-    #USER = 'urn:ietf:params:scim:schemas:core:2.0:User'
-    CUSTOM_USER = 'urn:okta:zimtfinancialservicesdancinnamonsdemoorg_swademo_1:1.0:user:custom'
-    ENTERPRISE_USER = 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User'
-    #GROUP = 'urn:ietf:params:scim:schemas:core:2.0:Group'
+    OKTA_USER = 'urn:okta:zimtfinancialservicesdancinnamonsdemoorg_legacyappproductcatalogdev_1:1.0:user:custom'
     GROUP = 'urn:scim:schemas:core:1.0'
     RESOURCE_TYPE = 'urn:ietf:params:scim:schemas:core:2.0:ResourceType'
     SERVICE_PROVIDER_CONFIG = 'urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig'

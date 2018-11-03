@@ -19,16 +19,15 @@ from .exceptions import SCIMException
 from .exceptions import NotFoundError
 from .exceptions import BadRequestError
 from .exceptions import IntegrityError
-from .utils import get_all_schemas_getter
-from .utils import get_group_adapter
-from .utils import get_group_model
-from .utils import get_user_adapter
-from .utils import get_base_scim_location_getter
-from .utils import get_service_provider_config_model
-from .utils import get_extra_model_filter_kwargs_getter
-from .utils import get_extra_model_exclude_kwargs_getter
+from .constants import BASE_PATH
 from .utils import get_loggable_body
 
+from django.contrib.auth.models import Group
+from django.contrib.auth import get_user_model
+
+from .adapters import SCIMUser
+from .adapters import SCIMGroup
+from .models import SCIMServiceProviderConfig
 
 logger = logging.getLogger(__name__)
 
@@ -52,13 +51,8 @@ class SCIMView(View):
 
         uuid = self.kwargs[lookup_url_kwarg]
 
-        extra_filter_kwargs = self.get_extra_filter_kwargs(self.request, uuid)
-        extra_filter_kwargs[self.lookup_field] = uuid
-        # No use of get_extra_exclude_kwargs here since we are
-        # searching for a specific single object.
-
         try:
-            return self.model_cls.objects.get(**extra_filter_kwargs)
+            return self.model_cls.objects.get(id=uuid)
         except ObjectDoesNotExist as _e:
             raise NotFoundError(uuid)
 
@@ -138,56 +132,7 @@ class FilterMixin(object):
         except ValueError as e:
             raise BadRequestError('Invalid filter/search query: ' + str(e))
 
-        extra_filter_kwargs = self.get_extra_filter_kwargs(request)
-        qs = self._filter_raw_queryset_with_extra_filter_kwargs(qs, extra_filter_kwargs)
-        extra_exclude_kwargs = self.get_extra_exclude_kwargs(request)
-        qs = self._filter_raw_queryset_with_extra_exclude_kwargs(qs, extra_exclude_kwargs)
-
         return self._build_response(request, qs, start, count)
-
-    def _filter_raw_queryset_with_extra_filter_kwargs(self, qs, extra_filter_kwargs):
-
-        obj_list = []
-        for obj in qs:
-            add_obj = True
-            for attr_name, attr_val in extra_filter_kwargs.items():
-                if attr_name.endswith('__in'):
-                    attr_name = attr_name.replace('__in', '')
-                    if not hasattr(obj, attr_name) or getattr(obj, attr_name) not in attr_val:
-                        add_obj = False
-                        break
-
-                else:
-                    if not hasattr(obj, attr_name) or getattr(obj, attr_name) != attr_val:
-                        add_obj = False
-                        break
-
-            if add_obj:
-                obj_list.append(obj)
-
-        return obj_list
-
-    def _filter_raw_queryset_with_extra_exclude_kwargs(self, qs, extra_exclude_kwargs):
-
-        obj_list = []
-        for obj in qs:
-            add_obj = True
-            for attr_name, attr_val in extra_exclude_kwargs.items():
-                if attr_name.endswith('__in'):
-                    attr_name = attr_name.replace('__in', '')
-                    if hasattr(obj, attr_name) and getattr(obj, attr_name) in attr_val:
-                        add_obj = False
-                        break
-
-                else:
-                    if hasattr(obj, attr_name) and getattr(obj, attr_name) == attr_val:
-                        add_obj = False
-                        break
-
-            if add_obj:
-                obj_list.append(obj)
-
-        return obj_list
 
     def _build_response(self, request, qs, start, count):
         try:
@@ -209,17 +154,14 @@ class FilterMixin(object):
             return HttpResponse(content=content,
                                 content_type=constants.SCIM_CONTENT_TYPE)
 
-
 class SearchView(FilterMixin, SCIMView):
     http_method_names = ['post']
 
     scim_adapter = None
-    get_extra_filter_kwargs = get_extra_model_filter_kwargs_getter('search')
-    get_extra_exclude_kwargs = get_extra_model_exclude_kwargs_getter('search')
 
     def post(self, request):
         body = json.loads(request.body.decode(constants.ENCODING) or '{}')
-        if body.get('schemas') != [constants.SchemaURI.SERACH_REQUEST]:
+        if body.get('schemas') != [constants.SchemaURI.SEARCH_REQUEST]:
             raise BadRequestError('Invalid schema uri. Must be SearchRequest.')
 
         query = body.get('filter', request.GET.get('filter'))
@@ -229,7 +171,7 @@ class SearchView(FilterMixin, SCIMView):
         else:
             response = self._search(request, query, *self._page(request))
             path = reverse(self.scim_adapter.url_name)
-            url = urljoin(get_base_scim_location_getter()(request=request), path).rstrip('/')
+            url = urljoin("https://localhost", path).rstrip('/')
             response['Location'] = url + '/.search'
             return response
 
@@ -255,13 +197,7 @@ class GetView(object):
         if query:
             return self._search(request, query, *self._page(request))
 
-        extra_filter_kwargs = self.get_extra_filter_kwargs(request)
-        extra_exclude_kwargs = self.get_extra_exclude_kwargs(request)
-        qs = self.model_cls.objects.filter(
-            **extra_filter_kwargs
-        ).exclude(
-            **extra_exclude_kwargs
-        ).order_by(self.lookup_field)
+        qs = self.model_cls.objects.all().order_by(self.lookup_field)
         return self._build_response(request, qs, *self._page(request))
 
 
@@ -278,6 +214,7 @@ class DeleteView(object):
 
 class PostView(object):
     def post(self, request, **kwargs):
+        print("Post Request Body:{}".format(request.body.decode(constants.ENCODING)))
         obj = self.model_cls()
         scim_obj = self.scim_adapter(obj, request=request)
 
@@ -302,6 +239,7 @@ class PostView(object):
 
 class PutView(object):
     def put(self, request, *args, **kwargs):
+        print("Put Request Body:{}".format(request.body.decode(constants.ENCODING)))
         obj = self.get_object()
 
         scim_obj = self.scim_adapter(obj, request=request)
@@ -321,45 +259,20 @@ class PutView(object):
         response['Location'] = scim_obj.location
         return response
 
+class UsersView(FilterMixin, GetView, PostView, PutView, DeleteView, SCIMView):
 
-class PatchView(object):
-    def patch(self, request, *args, **kwargs):
-        obj = self.get_object()
+    http_method_names = ['get', 'post', 'put']
 
-        scim_obj = self.scim_adapter(obj, request=request)
-        body = json.loads(request.body.decode(constants.ENCODING))
-
-        operations = body.get('Operations')
-
-        with transaction.atomic():
-            scim_obj.handle_operations(operations)
-
-        content = json.dumps(scim_obj.to_dict())
-        response = HttpResponse(content=content,
-                                content_type=constants.SCIM_CONTENT_TYPE)
-        response['Location'] = scim_obj.location
-        return response
-
-
-class UsersView(FilterMixin, GetView, PostView, PutView, PatchView, DeleteView, SCIMView):
-
-    http_method_names = ['get', 'post', 'put', 'patch', 'delete']
-
-    scim_adapter = get_user_adapter()
+    scim_adapter = SCIMUser
     model_cls = get_user_model()
-    get_extra_filter_kwargs = get_extra_model_filter_kwargs_getter(model_cls)
-    get_extra_exclude_kwargs = get_extra_model_exclude_kwargs_getter(model_cls)
     parser = SCIMSimpleUserFilterTransformer
 
 
-class GroupsView(FilterMixin, GetView, PostView, PutView, PatchView, DeleteView, SCIMView):
-    print("HIT GROUPS VIEW")
+class GroupsView(FilterMixin, GetView, PostView, PutView, DeleteView, SCIMView):
     http_method_names = ['get', 'post', 'put', 'patch', 'delete']
 
-    scim_adapter = get_group_adapter()
-    model_cls = get_group_model()
-    get_extra_filter_kwargs = get_extra_model_filter_kwargs_getter(model_cls)
-    get_extra_exclude_kwargs = get_extra_model_exclude_kwargs_getter(model_cls)
+    scim_adapter = SCIMGroup
+    model_cls = Group
     parser = None
 
 
@@ -367,60 +280,7 @@ class ServiceProviderConfigView(SCIMView):
     http_method_names = ['get']
 
     def get(self, request):
-        config = get_service_provider_config_model()(request=request)
+        config = SCIMServiceProviderConfig(request=request)
         content = json.dumps(config.to_dict())
-        return HttpResponse(content=content,
-                            content_type=constants.SCIM_CONTENT_TYPE)
-
-
-class ResourceTypesView(SCIMView):
-
-    http_method_names = ['get']
-
-    def type_dict_by_type_id(self, request):
-        type_adapters = get_user_adapter(), get_group_adapter()
-        type_dicts = [m.resource_type_dict(request) for m in type_adapters]
-        return {d['id']: d for d in type_dicts}
-
-    def get(self, request, uuid=None, *args, **kwargs):
-        if uuid:
-            doc = self.type_dict_by_type_id(request).get(uuid)
-            if not doc:
-                return HttpResponse(content_type=constants.SCIM_CONTENT_TYPE, status=404)
-
-        else:
-            key_func = lambda o: o.get('id')
-            type_dicts = self.type_dict_by_type_id(request).values()
-            types = list(sorted(type_dicts, key=key_func))
-            doc = {
-                'schemas': [constants.SchemaURI.LIST_RESPONSE],
-                'Resources': types,
-            }
-
-        return HttpResponse(content=json.dumps(doc),
-                            content_type=constants.SCIM_CONTENT_TYPE)
-
-
-class SchemasView(SCIMView):
-
-    http_method_names = ['get']
-
-    schemas_by_uri = {s['id']: s for s in get_all_schemas_getter()()}
-
-    def get(self, request, uuid=None, *args, **kwargs):
-        if uuid:
-            doc = self.schemas_by_uri.get(uuid)
-            if not doc:
-                return HttpResponse(content_type=constants.SCIM_CONTENT_TYPE, status=404)
-
-        else:
-            key_func = lambda o: o.get('id')
-            schemas = list(sorted(self.schemas_by_uri.values(), key=key_func))
-            doc = {
-                'schemas': [constants.SchemaURI.LIST_RESPONSE],
-                'Resources': schemas,
-            }
-
-        content = json.dumps(doc)
         return HttpResponse(content=content,
                             content_type=constants.SCIM_CONTENT_TYPE)

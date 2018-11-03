@@ -4,8 +4,7 @@ except ImportError:
     from django.conf.urls import url as re_path
 
 from .simple_filter import SCIMSimpleUserFilterTransformer
-from .utils import get_user_adapter
-from .utils import get_group_adapter
+from .adapters import SCIMUser
 from . import views
 
 
@@ -22,7 +21,7 @@ urlpatterns = [
         name='search'),
 
     re_path(r'^Users/.search$',
-        views.SearchView.as_view(scim_adapter=get_user_adapter(), parser=SCIMSimpleUserFilterTransformer),
+        views.SearchView.as_view(scim_adapter=SCIMUser(None), parser=SCIMSimpleUserFilterTransformer),
         name='users-search'),
 
     re_path(r'^Users(?:/(?P<uuid>[^/]+))?$',
@@ -44,16 +43,4 @@ urlpatterns = [
     re_path(r'^ServiceProviderConfig$',
         views.ServiceProviderConfigView.as_view(),
         name='service-provider-config'),
-
-    re_path(r'^ResourceTypes(?:/(?P<uuid>[^/]+))?$',
-        views.ResourceTypesView.as_view(),
-        name='resource-types'),
-
-    re_path(r'^Schemas(?:/(?P<uuid>[^/]+))?$',
-        views.SchemasView.as_view(),
-        name='schemas'),
-
-    re_path(r'^Bulk$',
-        views.SCIMView.as_view(implemented=False),
-        name='bulk'),
 ]

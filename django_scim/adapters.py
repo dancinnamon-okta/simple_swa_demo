@@ -16,6 +16,7 @@ An adapter is instantiated with a model instance. Eg::
     ...
 
 """
+import logging
 from urllib.parse import urljoin
 
 from django.contrib.auth import get_user_model
@@ -24,10 +25,10 @@ from django import core
 
 from . import constants
 from .exceptions import PatchError
-from .utils import get_base_scim_location_getter
-from .utils import get_group_adapter
-from .utils import get_user_adapter
+from .constants import BASE_PATH
 import json
+
+logger = logging.getLogger(__name__)
 
 class SCIMMixin(object):
     def __init__(self, obj, request=None):
@@ -56,7 +57,7 @@ class SCIMMixin(object):
 
     @property
     def location(self):
-        return urljoin(get_base_scim_location_getter()(self.request), self.path)
+        return urljoin(BASE_PATH, self.path)
 
     def save(self):
         self.obj.save()
@@ -121,7 +122,7 @@ class SCIMUser(SCIMMixin):
         Return the groups of the user per the SCIM spec.
         """
         group_qs = self.obj.groups.all()
-        scim_groups = [get_group_adapter()(g, self.request) for g in group_qs]
+        scim_groups = [SCIMGroup(g, self.request) for g in group_qs]
 
         dicts = []
         for group in scim_groups:
@@ -154,7 +155,7 @@ class SCIMUser(SCIMMixin):
         ready for conversion to a JSON object.
         """
         d = {
-            'schemas': [constants.SchemaURI.USER],
+            'schemas': [constants.SchemaURI.USER, constants.SchemaURI.OKTA_USER],
             'id': self.id,
             'userName': self.obj.username,
             'name': {
@@ -165,6 +166,13 @@ class SCIMUser(SCIMMixin):
             'emails': self.emails,
             'active': self.obj.is_active,
             'groups': self.groups,
+            constants.SchemaURI.OKTA_USER: {
+                "phone_number":self.obj.profile.phone_number,
+                "department": self.obj.profile.department,
+                "company_name": self.obj.profile.company_name,
+                "country": self.obj.profile.country,
+                "opt_in": self.obj.profile.opt_in,
+            },
         #    'meta': self.meta,
         }
 
@@ -205,6 +213,16 @@ class SCIMUser(SCIMMixin):
         if active is not None:
             self.obj.is_active = active
 
+        if self.obj.id is None:
+            self.obj.save()
+
+        if d.get("{}".format(constants.SchemaURI.OKTA_USER)) is not None:
+            self.obj.profile.phone_number = d.get("{}".format(constants.SchemaURI.OKTA_USER)).get("phone_number")
+            self.obj.profile.department = d.get("{}".format(constants.SchemaURI.OKTA_USER)).get("department")
+            self.obj.profile.company_name = d.get("{}".format(constants.SchemaURI.OKTA_USER)).get("company_name")
+            self.obj.profile.country = d.get("{}".format(constants.SchemaURI.OKTA_USER)).get("country")
+            self.obj.profile.opt_in = d.get("{}".format(constants.SchemaURI.OKTA_USER)).get("opt_in")
+
     @classmethod
     def resource_type_dict(cls, request=None):
         """
@@ -212,7 +230,7 @@ class SCIMUser(SCIMMixin):
         """
         id_ = cls.resource_type
         path = reverse('scim:resource-types', kwargs={'uuid': id_})
-        location = urljoin(get_base_scim_location_getter()(request), path)
+        location = urljoin(BASE_PATH, path)
         return {
             'schemas': [constants.SchemaURI.RESOURCE_TYPE],
             'id': id_,
@@ -225,45 +243,6 @@ class SCIMUser(SCIMMixin):
                 'resourceType': 'ResourceType'
             }
         }
-
-    def handle_replace(self, operation):
-        """
-        Handle the replace operations.
-        """
-        attr_map = {
-            'familyName': 'last_name',
-            'givenName': 'first_name',
-            'userName': 'username',
-            'active': 'is_active',
-        }
-
-        attrs = operation.get('value', {})
-
-        for attr, attr_value in attrs.items():
-            if attr in attr_map:
-                setattr(self.obj, attr_map.get(attr), attr_value)
-            elif attr == 'emails':
-                primary_emails = [e for e in attr_value if e.get('primary')]
-                if primary_emails:
-                    email = primary_emails[0].get('value')
-                elif attr_value:
-                    email = attr_value[0].get('value')
-                else:
-                    raise PatchError('Invalid email value')
-
-                try:
-                    validator = core.validators.EmailValidator()
-                    validator(email)
-                except core.exceptions.ValidationError:
-                    raise PatchError('Invalid email value')
-
-                self.obj.email = email
-
-            else:
-                raise NotImplementedError('Not Implemented')
-
-        self.obj.save()
-
 
 class SCIMGroup(SCIMMixin):
     """
@@ -294,7 +273,7 @@ class SCIMGroup(SCIMMixin):
         dicts = []
         users = self.obj.user_set.all()
         if users is not None:
-            scim_users = [get_user_adapter()(user, self.request) for user in users]
+            scim_users = [SCIMUser(user, self.request) for user in users]
 
             for user in scim_users:
                 d = {
@@ -349,7 +328,7 @@ class SCIMGroup(SCIMMixin):
         """
         name = d.get('displayName')
         self.obj.name = name or ''
-        
+
         if self.obj.id is None:
             self.obj.save()
 
@@ -372,7 +351,7 @@ class SCIMGroup(SCIMMixin):
         """
         id_ = cls.resource_type
         path = reverse('scim:resource-types', kwargs={'uuid': id_})
-        location = urljoin(get_base_scim_location_getter()(request), path)
+        location = urljoin(BASE_PATH, path)
         return {
             'schemas': [constants.SchemaURI.RESOURCE_TYPE],
             'id': id_,
@@ -418,18 +397,6 @@ class SCIMGroup(SCIMMixin):
 
             for user in users:
                 self.obj.user_set.remove(user)
-
-        else:
-            raise NotImplemented
-
-    def handle_replace(self, operation):
-        """
-        Handle the replace operations.
-        """
-        if operation.get('path') == 'name':
-            name = operation.get('value')[0].get('value')
-            self.obj.name = name
-            self.obj.save()
 
         else:
             raise NotImplemented

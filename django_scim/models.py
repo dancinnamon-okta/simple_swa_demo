@@ -3,8 +3,7 @@ from urllib.parse import urljoin
 from django.urls import reverse
 
 from . import constants
-from .settings import scim_settings
-from .utils import get_base_scim_location_getter
+from .constants import BASE_PATH
 
 
 class SCIMServiceProviderConfig(object):
@@ -26,12 +25,12 @@ class SCIMServiceProviderConfig(object):
     @property
     def location(self):
         path = reverse('scim:service-provider-config')
-        return urljoin(get_base_scim_location_getter()(self.request), path)
+        return urljoin(BASE_PATH, path)
 
     def to_dict(self):
         return {
             'schemas': [constants.SchemaURI.SERVICE_PROVIDER_CONFIG, constants.SchemaURI.OKTA_PROVIDER_CONFIG],
-            'documentationUri': scim_settings.DOCUMENTATION_URI,
+            'documentationUri': 'https://developer.okta.com',
             'patch': {
                 'supported': True,
             },
@@ -53,7 +52,7 @@ class SCIMServiceProviderConfig(object):
             'etag': {
                 'supported': False,
             },
-            'authenticationSchemes': scim_settings.AUTHENTICATION_SCHEMES,
+            'authenticationSchemes': {},
             'meta': self.meta,
             'urn:okta:schemas:scim:providerconfig:1.0':{
                 'userManagementCapabilities':[

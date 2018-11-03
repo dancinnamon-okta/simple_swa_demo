@@ -71,39 +71,13 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'swa_opp_demo.wsgi.application'
 
-#AUTHENTICATION_BACKENDS = ['swa_app.scim_auth.SCIM_AUTH_BACKEND']
-
-# Database
-# https://docs.djangoproject.com/en/2.0/ref/settings/#databases
-#
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql_psycopg2',
-#         'NAME': 'swa_opp_demo',
-#         'USER': 'postgres',
-#         'PASSWORD': 'init1234',
-#         'HOST': 'localhost',
-#         'PORT': '5432',
-#     }
-# }
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': '/src/db.sqlite3',
+        'NAME': 'db.sqlite3',
     }
 }
 
-SCIM_SERVICE_PROVIDER = {
-    'NETLOC': 'localhost',
-    'AUTHENTICATION_SCHEMES': [
-        {
-            'type': 'oauth2',
-            'name': 'OAuth 2',
-            'description': 'Oauth 2 implemented with bearer token',
-        },
-    ],
-}
 
 # Password validation
 # https://docs.djangoproject.com/en/2.0/ref/settings/#auth-password-validators
