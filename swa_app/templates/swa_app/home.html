@@ -15,9 +15,7 @@
   </head>
 
   <body>
-
     <div class="container">
-
       <!-- The justified navigation menu is meant for single line per list item.
            Multiple lines will require custom code not provided by Bootstrap. -->
       <div class="masthead">
@@ -32,48 +30,64 @@
           </ul>
         </nav>
       </div>
-
-      <!-- Jumbotron -->
       <div class="row mt-2" style="margin-top:10px; margin-bottom:20px;"  id="vue-app">
+  		    <div class="col col-lg-4">
+  						<div class="panel-group" style="width:100%">
+  							<div class="panel panel-default">
+  							  <div class="panel-heading">
+                    {% templatetag openvariable %} profile.first_name {% templatetag closevariable %} {% templatetag openvariable %} profile.last_name {% templatetag closevariable %}'s Profile
+                    <span v-if="isAdmin" class="badge">Admin</span>
+                  </div>
+                    <div class="panel-body">
+                      <dl class="dl-horizontal profile-view">
+                        <dt>User Login ID</dt>
+                        <dd>{% templatetag openvariable %} profile.user_name {% templatetag closevariable %}</dd>
+                        <dt>Opt In Marketing?</dt>
+                        <dd>{% templatetag openvariable %} profile.opt_in {% templatetag closevariable %}</dd>
+                        <dt>Department</dt>
+                        <dd>{% templatetag openvariable %} profile.department {% templatetag closevariable %}</dd>
+                        <dt>Phone Number</dt>
+                        <dd>{% templatetag openvariable %} profile.phone_number {% templatetag closevariable %}</dd>
+                        <dt>Country</dt>
+                        <dd>{% templatetag openvariable %} profile.country {% templatetag closevariable %}</dd>
+                        <dt>Company</dt>
+                        <dd>{% templatetag openvariable %} profile.company_name {% templatetag closevariable %}</dd>
+                      </dl>
+                    </div>
+  					    </div>
+                <div class="panel panel-info">
+                  <div class="panel-heading">Groups and access</div>
+                    <div class="panel-body">
+                      <table class="table table-striped">
+                        <thead>
+                          <tr>
+                            <th>Group Name</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="grp in profile.groups">
+                            <td>{% templatetag openvariable %} grp.name {% templatetag closevariable %}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                  </div>
+              </div>
+  				</div>
+          <button v-if="isAdmin" class="btn btn-lg btn-primary btn-block" onclick="window.location.replace('/admin')">Switch to Admin</button>
+          <button class="btn btn-lg btn-primary btn-block" onclick="window.location.replace('/logout')">Log out</button>
+  			</div>
         <div class="col col-lg-8">
           <h1>Welcome to our Catalog - {% templatetag openvariable %} profile.first_name {% templatetag closevariable %}!</h1>
           <p class="lead">Browse our selection of top quality products.</p>
           <p><a class="btn btn-lg btn-success" href="#" role="button">Get started today</a></p>
-        </div>
-        <div class="container-fluid">
-  				<div class="container">
-  					<!---- for body container ---->
-  					<div class="row">
-  						 <!-------mother container middle class------------------->
-  						<div class="col-lg-4">
-  						<div class="card" style="width:100%">
-  							<img class="card-img-top" src="https://avatars1.githubusercontent.com/u/5666961?s=400&v=4" alt="Card image"  style="width:100%">
-  							<div class="card-body">
-  							  <h4 class="card-title">{% templatetag openvariable %} profile.first_name {% templatetag closevariable %} {% templatetag openvariable %} profile.last_name {% templatetag closevariable %}</h4>
-                    <p>{% templatetag openvariable %} profile.user_name {% templatetag closevariable %}</p>
-                    <p>Groups</p>
-  								  <ul class="w3-ul w3-small">
-                      <li v-for="grp in profile.groups">
-                        {% templatetag openvariable %} grp.name {% templatetag closevariable %}
-                      </li>
-  								  </ul>
-                    <button class="btn btn-lg btn-primary btn-block" onclick="window.location.replace('/logout')">Log out</button>
-  					</div>
-  				</div>
-  			</div>
-      </div>
-    </div></div>
-    </div>
-
-
-      <!-- Example row of columns -->
-      <div class="row">
-        <div class="col-lg-4">
           <h2>Featured Product</h2>
           <p class="text-danger">A revolutionary new design!</p>
-          <p><img class="img-responsive" src="{% static 'screwdriver.jpeg' %}" /></p>
+          <p><img class="img-responsive" src="{% static 'screwdriver.jpeg' %}" style="width:200px;height:200px"/></p>
           <p><a class="btn btn-primary" href="#" role="button">View details &raquo;</a></p>
         </div>
+      </div>
+      <!-- Example row of columns -->
+      <div class="row">
         <div class="col-lg-4">
           <h2>Did you know?</h2>
           <p>Donec id elit non mi porta gravida at eget metus. Fusce dapibus, tellus ac cursus commodo, tortor mauris condimentum nibh, ut fermentum massa justo sit amet risus. Etiam porta sem malesuada magna mollis euismod. Donec sed odio dui. </p>
@@ -95,9 +109,18 @@
       var app = new Vue({
         el: '#vue-app',
         data: {
-          message: 'Hello Vue!',
           profile: {{ profile|safe }}
-        }
+        },
+        computed: {
+            isAdmin: function () {
+              for(var i=0; i < this.profile.groups.length; i++){
+                if( this.profile.groups[i].name == 'Catalog Admin'){
+                  return true
+                }
+              }
+              return false;
+            }
+          }
       })
     </script>
   </body>
