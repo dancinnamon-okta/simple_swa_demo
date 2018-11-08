@@ -14,7 +14,7 @@
   </head>
 
   <body>
-    <div class="container">
+    <div class="container" id="vueapp">
         <div class="row">
             <p></p>
         </div>
@@ -25,22 +25,51 @@
                     Currently registered users
                 </div>
                 <div class="panel-body">
-                  <div id="vueapp-users">
+                  <table class = "table table-striped table-hover">
+                      <tbody>
+                          <th>User Login ID</th>
+                          <th>Opt In Marketing?</th>
+                          <th>Department</th>
+                          <th>Phone Number</th>
+                          <th>Country</th>
+                          <th>Company</th>
+                          <tr v-for="profile in allUsers">
+                              <td><label>{% templatetag openvariable %} profile.user_name {% templatetag closevariable %}</label></td>
+                              <td><label>{% templatetag openvariable %} profile.opt_in {% templatetag closevariable %}</label></td>
+                              <td><label>{% templatetag openvariable %} profile.department {% templatetag closevariable %}</label></td>
+                              <td><label>{% templatetag openvariable %} profile.phone_number {% templatetag closevariable %}</label></td>
+                              <td><label>{% templatetag openvariable %} profile.country {% templatetag closevariable %}</label></td>
+                              <td><label>{% templatetag openvariable %} profile.company_name {% templatetag closevariable %}</label></td>
+                          </tr>
+                      </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+              <div class="panel-group">
+                <div class="panel panel-info">
+                  <div class="panel-heading">
+                      Groups
+                  </div>
+                  <div class="panel-body">
                     <table class = "table table-striped table-hover">
                         <tbody>
-                            <th>User Login ID</th>
-                            <th>Opt In Marketing?</th>
-                            <th>Department</th>
-                            <th>Phone Number</th>
-                            <th>Country</th>
-                            <th>Company</th>
-                            <tr v-for="profile in allUsers">
-                                <td><label>{% templatetag openvariable %} profile.user_name {% templatetag closevariable %}</label></td>
-                                <td><label>{% templatetag openvariable %} profile.opt_in {% templatetag closevariable %}</label></td>
-                                <td><label>{% templatetag openvariable %} profile.department {% templatetag closevariable %}</label></td>
-                                <td><label>{% templatetag openvariable %} profile.phone_number {% templatetag closevariable %}</label></td>
-                                <td><label>{% templatetag openvariable %} profile.country {% templatetag closevariable %}</label></td>
-                                <td><label>{% templatetag openvariable %} profile.company_name {% templatetag closevariable %}</label></td>
+                            <th>Group Name</th>
+                            <th>Members</th>
+                            <tr v-for="grp in allGroups">
+                                <td><label>{% templatetag openvariable %} grp.name {% templatetag closevariable %}</label></td>
+                                <td v-if="grp.members.length > 0">
+                                  <ul style="list-style-position: inside; padding-left: 0;">
+                                    <li v-for="mem in grp.members">
+                                        <label>{% templatetag openvariable %} mem {% templatetag closevariable %}</label>
+                                    </li>
+                                  </ul>
+                                </td>
+                                <td v-if="grp.members.length == 0">
+                                  <label>No Members</label>
+                                </td>
                             </tr>
                         </tbody>
                     </table>
@@ -48,14 +77,15 @@
                 </div>
               </div>
             </div>
-          </div>
+            <button class="btn btn-lg btn-primary btn-block" onclick="window.location.replace('/')">Switch to User View</button>
         </div>
     </div>
     <script>
       var listUsersApp = new Vue({
-          el: '#vueapp-users',
+          el: '#vueapp',
           data: {
-              allUsers: {{ all_users|safe }}
+              allUsers: {{ all_users|safe }},
+              allGroups: {{ all_groups|safe }}
           }
       });
     </script>
